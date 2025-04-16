@@ -23,12 +23,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/dashboard',[HomeController::class, 'dashboard'])->name('dashboard');
 
 //login 
-Route::get('/login',[LoginController::class, 'index'])->name('login');
-Route::post('/login_process',[LoginController::class, 'login_process'])->name('login_process');
+Route::get('/login',[LoginController::class, 'index'])->name('login')->middleware('guest');
+Route::post('/login_process',[LoginController::class, 'login_process'])->name('login_process')->middleware('guest');
 
 
 //index
-Route::get('/user',[HomeController::class, 'index'])->name('index');
+Route::get('/user',[HomeController::class, 'index'])->name('index')->middleware('auth');
 Route::get('/create',[HomeController::class, 'create'])->name('user.create');
 Route::post('/store',[HomeController::class, 'store'])->name('user.store');
 
