@@ -13,52 +13,55 @@
   <link rel="stylesheet" href="{{ asset('lte/plugins/icheck-bootstrap/icheck-bootstrap.min.css') }}">
   <!-- Theme style -->
   <link rel="stylesheet" href="{{ asset('lte/dist/css/adminlte.min.css') }}">
+  {{-- <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"> --}}
 </head>
 <body class="hold-transition login-page">
 <div class="login-box">
   <!-- /.login-logo -->
   <div class="card card-outline card-primary">
     <div class="card-header text-center">
-      <a href="{{ route('login') }}" class="h1"><b>DLHK KOTA DENPASAR</b></a>
+      <a href="javascript:void(0);" class="h1"><b>DLHK KOTA DENPASAR</b></a>
     </div>
     <div class="card-body">
       <p class="login-box-msg">Login untuk masuk ke Sistem</p>
 
-      <form action="{{ route('login_process') }}" method="POST">
+      <form method="POST" action="{{ route('login') }}">
         @csrf
-        <div class="input-group mb-3">
-            <input type="email" name="email" class="form-control" placeholder="Email">
-            <div class="input-group-append">
+        <div class="input-group @error('email') @else mb-3 @enderror">
+            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" placeholder="Email">
+            <div class="input-group-append ">
                 <div class="input-group-text">
                     <span class="fas fa-envelope"></span>
                 </div>
             </div>
-
         </div>
         @error('email')
-            <small>{{ $message }}</small>
+            <div class="text-red">
+                 {{ $message }}
+            </div>
         @enderror
-        <div class="input-group mb-3">
-            <input type="password" name="password" class="form-control" placeholder="Password">
+        <div class="input-group @error('email') @else mb-3 @enderror">
+            <input type="password" name="password" class="form-control @error('email') is-invalid @enderror" placeholder="Password">
             <div class="input-group-append">
                 <div class="input-group-text">
                     <span class="fas fa-lock"></span>
                 </div>
             </div>
-
         </div>
         @error('password')
-            <small>{{ $message }}</small>
+            <div class="text-red">
+                {{ $message }}
+            </div>
         @enderror
         <div class="row">
-            <div class="col-8">
+            {{-- <div class="col-8">
                 <div class="icheck-primary">
                     <input type="checkbox" id="remember">
                     <label for="remember">
                         Remember Me
                     </label>
                 </div>
-            </div>
+            </div> --}}
             <!-- /.col -->
             <div class="col-4">
                 <button type="submit" class="btn btn-primary btn-block">Sign In</button>
@@ -68,9 +71,9 @@
     </form>
       <!-- /.social-auth-links -->
 
-      <p class="mb-1">
+      {{-- <p class="mb-1">
         <a href="forgot-password.html">I forgot my password</a>
-      </p>
+      </p> --}}
     </div>
     <!-- /.card-body -->
   </div>
@@ -87,7 +90,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-@if ($message = Session::get('success'))
+{{-- @if ($message = Session::get('success'))
 <script>
     Swal.fire('{{ $message }}');
 </script>
@@ -97,7 +100,7 @@
 <script>
     Swal.fire('{{ $message }}');
 </script>
-@endif
+@endif --}}
 
 </body>
 </html>
