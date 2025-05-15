@@ -75,7 +75,7 @@
                                         <br>
                                         <span class="error-text" data-error="bukti" style="color: red;"></span>
                                     </div>
-                                    @can('Kelola Perjalanan')
+                                    {{-- @can('Kelola Perjalanan') --}}
                                         <div class="form-group">
                                             <label for="status">Status</label>
                                             <select name="status" id="status" class="form-control">
@@ -85,7 +85,7 @@
                                             </select>
                                             <span class="error-text" data-error="status" style="color: red;"></span>
                                         </div>
-                                    @endcan
+                                    {{-- @endcan --}}
                                 </div>
                                 <!-- /.card-body -->
 
