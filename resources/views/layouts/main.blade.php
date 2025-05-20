@@ -95,6 +95,25 @@
         .select2-container--default.select2-container--focus .select2-selection--multiple {
             /* border-color: #0056b3; */
         }
+
+        #map-legend {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+        }
+        .legend-box {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 
