@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\RutePerjalanan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use DataTables;
 
 class RutePerjalananController extends Controller
@@ -38,6 +39,31 @@ class RutePerjalananController extends Controller
 
                 ->rawColumns(['action', 'status', 'alamat'])
                 ->make(true);
+        }
+
+        $routes = RutePerjalanan::all();
+
+        foreach ($routes as $route) {
+            $originalName = $route->nama;
+
+            // Skip if already starts with IN - or OUT -
+            if (Str::startsWith($originalName, 'IN - ') || Str::startsWith($originalName, 'OUT - ')) {
+                continue;
+            }
+
+            $inName = "IN - {$originalName}";
+            $outName = "OUT - {$originalName}";
+
+            // Insert OUT - record if it doesn't exist
+            if (!RutePerjalanan::where('nama', $outName)->exists()) {
+                $outCopy = $route->replicate();
+                $outCopy->nama = $outName;
+                $outCopy->save();
+            }
+
+            // Update current record to IN - ...
+            $route->nama = $inName;
+            $route->save();
         }
         return view ('rute_perjalanan.index');
     }
@@ -102,8 +128,18 @@ class RutePerjalananController extends Controller
             'status' => 'required|string|in:active,inactive',
         ],[], $attributes)->validate();
 
-        $rutePerjalanan = RutePerjalanan::create([
-            'nama' => $validate['nama'],
+        $baseName = $validate['nama'];
+
+        $inRoute = RutePerjalanan::create([
+            'nama' => "IN - {$baseName}",
+            'alamat' => $validate['alamat'],
+            'longitude' => $validate['longitude'],
+            'latitude' => $validate['latitude'],
+            'status' => $validate['status'],
+        ]);
+
+        $outRoute = RutePerjalanan::create([
+            'nama' => "OUT - {$baseName}",
             'alamat' => $validate['alamat'],
             'longitude' => $validate['longitude'],
             'latitude' => $validate['latitude'],
@@ -112,9 +148,10 @@ class RutePerjalananController extends Controller
 
         return response()->json([
             'status' => "success",
-            'message' => 'Rute Perjalanan berhasil ditambahkan!',
+            'message' => 'Rute Perjalanan IN dan OUT berhasil ditambahkan!',
         ], 201);
     }
+
 
     /**
      * Display the specified resource.

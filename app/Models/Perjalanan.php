@@ -16,6 +16,9 @@ class Perjalanan extends Model
         'id_user',
         'jarak',
         'kalkulasi',
+        'bobot',
+        'kategori',
+        'faktor_beban',
         'status',
     ];
 

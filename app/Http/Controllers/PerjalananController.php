@@ -39,11 +39,20 @@ class PerjalananController extends Controller
                     return '<span title="'.e($full).'">'.$display.'</span>';
                 })
                 
+                ->addColumn('faktor_beban', function($row){
+                    return $row->faktor_beban !== null ? $row->faktor_beban : "-";
+                })                
+                ->addColumn('bobot', function($row){
+                    return $row->bobot !== null ? $row->bobot . " kg" : "-";
+                })                
                 ->addColumn('jarak', function($row){
                     return $row->jarak." km";
                 })                
                 ->addColumn('kalkulasi', function($row){
                     return $row->kalkulasi." km/l";
+                })                
+                ->addColumn('kategori', function($row){
+                    return $row->kategori ?? "-";
                 })                
                 ->addColumn('action', function($row){
                     $btn = '<button type="button" class="btn btn-info btn-sm edit-btn" data-id="'.$row->id.'">Edit</button>';
@@ -101,6 +110,9 @@ class PerjalananController extends Controller
             'id_rute' => 'Rute',
             'id_kendaraan' => 'Kendaraan',
             'id_user' => 'User',
+            'bobot' => 'Bobot',
+            'kategori' => 'Kategori',
+            'faktor_beban' => 'Faktor Beban',
         ];
 
         $rules = [
@@ -109,6 +121,9 @@ class PerjalananController extends Controller
             'id_kendaraan' => 'required|exists:tb_kendaraan,id',
             'jarak' => 'required|string',
             'kalkulasi' => 'required|string',
+            'bobot' => 'nullable|numeric',
+            'faktor_beban' => 'nullable|numeric',
+            'kategori' => 'required|string',
         ];
 
         if (auth()->user()->can('Kelola Perjalanan')) {
@@ -123,6 +138,9 @@ class PerjalananController extends Controller
             'id_user' => $validated['id_user'] ?? auth()->id(),
             'jarak' => $validate['jarak'],
             'kalkulasi' => $validate['kalkulasi'],
+            'bobot' => $validate['bobot'],
+            'faktor_beban' => $validate['faktor_beban'],
+            'kategori' => $validate['kategori'],
             // 'status' => $validate['status'],
         ]);
 
@@ -170,6 +188,9 @@ class PerjalananController extends Controller
             'id_rute' => 'Rute',
             'id_kendaraan' => 'Kendaraan',
             'id_user' => 'User',
+            'bobot' => 'Bobot',
+            'kategori' => 'Kategori',
+            'faktor_beban' => 'Faktor Beban',
         ];
 
         $rules = [
@@ -178,6 +199,9 @@ class PerjalananController extends Controller
             'id_kendaraan' => 'required|exists:tb_kendaraan,id',
             'jarak' => 'required|string',
             'kalkulasi' => 'required|string',
+            'bobot' => 'nullable|numeric',
+            'faktor_beban' => 'nullable|string',
+            'kategori' => 'required|string',
         ];
 
         if (auth()->user()->can('Kelola Perjalanan')) {
@@ -190,6 +214,9 @@ class PerjalananController extends Controller
         $perjalanan->id_user = $validate['id_user'] ?? auth()->id();
         $perjalanan->jarak = $validate['jarak'];
         $perjalanan->kalkulasi = $validate['kalkulasi'];
+        $perjalanan->bobot = $validate['bobot'];
+        $perjalanan->kategori = $validate['kategori'];
+        $perjalanan->faktor_beban = $validate['faktor_beban'];
         $perjalanan->rute()->sync($validate['id_rute']);
         $perjalanan->save();
 

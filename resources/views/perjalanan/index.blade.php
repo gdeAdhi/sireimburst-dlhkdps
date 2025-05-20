@@ -51,6 +51,18 @@
                                         <span class="error-text" data-error="id_kendaraan" style="color: red;"></span>
                                     </div>
                                     <div class="form-group">
+                                        <label for="bobot">Bobot</label>
+                                        <input type="text" class="form-control" id="bobot" name="bobot"
+                                            placeholder="Bobot">
+                                        <span class="error-text" data-error="bobot" style="color: red;"></span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="faktor_beban">Faktor Beban</label>
+                                        <input type="text" class="form-control" id="faktor_beban" name="faktor_beban"
+                                            placeholder="Faktor Beban">
+                                        <span class="error-text" data-error="faktor_beban" style="color: red;"></span>
+                                    </div>
+                                    <div class="form-group">
                                         <label for="id_rute">Rute</label>
                                         <select name="id_rute[]" id="id_rute" class="form-control" multiple>
                                             <option value="">Pilih Rute</option>
@@ -60,6 +72,16 @@
                                             @endforeach
                                         </select>
                                         <span class="error-text" data-error="id_rute" style="color: red;"></span>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="kategori">Kategori</label>
+                                        <select name="kategori" id="kategori" class="form-control">
+                                            <option value="">Pilih Kategori</option>
+                                            <option value="Loading">Loading</option>
+                                            <option value="Unloading">Unloading</option>
+                                        </select>
+                                        <span class="error-text" data-error="kategori" style="color: red;"></span>
                                     </div>
                                     @can('Kelola Perjalanan')
                                         <div class="form-group">
@@ -86,11 +108,12 @@
 
                     </div>
                     <div class="col-12" style="margin-bottom: 20px;">
-                        <div id="route-info" class="mt-2 text-muted"></div>
+                        <div id="route-breakdown" class="mt-2 text-muted"></div>
                     </div>
                     <div class="col-12" style="margin-bottom: 20px;">
                         <div id="map" style="height: 400px;"></div>
                     </div>
+                    {{-- <div id="route-breakdown" class="mt-3"></div> --}}
                     <div class="col-12">
                         <div class="card card-info">
                             <div class="card-header">
@@ -106,7 +129,10 @@
                                             <th>Kendaraan</th>
                                             <th>Driver</th>
                                             <th>Jarak</th>
+                                            <th>Faktor Beban</th>
+                                            <th>Bobot</th>
                                             <th>Kalkulasi</th>
+                                            <th>Kategori</th>
                                             {{-- <th>Status</th> --}}
                                             <th>Action</th>
                                         </tr>
@@ -133,6 +159,13 @@
                 allowClear: true
             });
 
+            $('#kategori').select2({
+                placeholder: "Pilih Kategori",
+                allowClear: true
+            });
+
+            selectedRouteOrder = [];
+
             $('#id_rute').select2({
                 placeholder: "Pilih Rute",
                 allowClear: true,
@@ -140,6 +173,21 @@
                 closeOnSelect: false,
                 width: '100%'
             });
+
+            $('#id_rute').on('select2:select', function(e) {
+                const id = e.params.data.id;
+                if (!selectedRouteOrder.includes(id)) {
+                    selectedRouteOrder.push(id);
+                }
+                updateMap();
+            });
+
+            $('#id_rute').on('select2:unselect', function(e) {
+                const id = e.params.data.id;
+                selectedRouteOrder = selectedRouteOrder.filter(item => item !== id);
+                updateMap();
+            });
+
 
             $('#id_user').select2({
                 placeholder: "Pilih User",
@@ -168,101 +216,179 @@
     </script>
 
     <script>
-        let currentPolyline = null;
-        let map = L.map('map').setView([-8.65, 115.20], 13);
+        let debounceTimer;
+        $('#bobot, #faktor_beban').on('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                if (window.lastRouteSegments && window.lastRouteSegments.length > 1) {
+                    plotSegmentedRoute(window.lastRouteSegments);
+                }
+            }, 500); // 500ms delay
+        });
+    </script>
 
-        // Add the base tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    <script>
+        function updateMap() {
+            document.getElementById('route-breakdown').innerHTML = "";
+            let selectedRouteIds = selectedRouteOrder;
+            console.log("Selected IDs (in order):", selectedRouteIds);
 
-        // Keep track of markers and route control globally
-        let markers = [];
-        let routeControl = null;
-
-        // When route selection changes
-        $('#id_rute').on('change', function() {
-            let selectedRouteIds = $(this).val() || [];
-
-            // 🧹 Remove old markers
             markers.forEach(marker => map.removeLayer(marker));
             markers = [];
+            currentPolylines.forEach(line => map.removeLayer(line));
+            currentPolylines = [];
 
-            // 🧹 Remove old polyline
-            if (currentPolyline) {
-                map.removeLayer(currentPolyline);
-                currentPolyline = null;
-            }
-
-            // 🛑 Exit early if fewer than 2 points
             if (selectedRouteIds.length < 2) return;
 
-            // Get selected rute data
             let allRute = @json($rute);
-            let selectedRute = allRute.filter(r => selectedRouteIds.includes(r.id.toString()));
+            let selectedRute = allRute
+                .filter(r => selectedRouteIds.includes(r.id.toString()))
+                .sort((a, b) => {
+                    return selectedRouteIds.indexOf(a.id.toString()) - selectedRouteIds.indexOf(b.id.toString());
+                });
 
-            // Add markers
-            let coords = selectedRute.map(r => {
+            routeSegments = [];
+            let inCoords = [];
+            let outCoords = [];
+
+            selectedRute.forEach((r, index) => {
                 let lat = parseFloat(r.latitude);
                 let lng = parseFloat(r.longitude);
 
-                let marker = L.marker([lat, lng])
+                if (r.nama.startsWith("OUT - ")) {
+                    lat += 0.0001;
+                    lng += 0.0001;
+                }
+
+                let bgColor = r.nama.startsWith("IN - ") ? "#007bff" : "#28a745";
+
+                let numberIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="background:${bgColor};color:white;border-radius:50%;width:30px;height:30px;text-align:center;line-height:30px;font-weight:bold">${index + 1}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 30]
+                });
+
+                let marker = L.marker([lat, lng], {
+                        icon: numberIcon
+                    })
                     .addTo(map)
-                    .bindPopup(`<strong>${r.nama}</strong><br>${r.alamat}`);
+                    .bindPopup(`<strong>${r.nama}</strong><br>${r.alamat}`)
+                    .bindTooltip(r.nama, {
+                        permanent: true,
+                        direction: "top",
+                        offset: [0, -30]
+                    });
+
                 markers.push(marker);
 
-                return [lng, lat]; // For ORS
+                routeSegments.push({
+                    name: r.nama,
+                    lat: lat,
+                    lng: lng
+                });
             });
 
-            // 🟦 Call route drawer
-            plotRouteOnMap(coords);
-        });
+            window.lastRouteSegments = routeSegments;
 
+            if (routeSegments.length >= 2) {
+                plotSegmentedRoute(routeSegments);
+            }
+        }
+    </script>
 
+    <script>
+        let currentPolylines = [];
+        let map = L.map('map').setView([-8.65, 115.20], 13);
 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // Draw route using ORS
-        function plotRouteOnMap(coords) {
-            // Ensure coords is valid
-            if (coords.length < 2) return;
+        let markers = [];
+        let colorPalette = ['blue', 'green', 'red', 'orange', 'purple', 'brown', 'black'];
 
-            fetch('/api/ors-route', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                    },
-                    body: JSON.stringify({
-                        coordinates: coords
+        function plotSegmentedRoute(routeSegments) {
+            $('#route-breakdown').html(''); // Clear previous
+            let breakdownHtml = '';
+            let totalDistance = 0;
+            let totalFuel = 0;
+            let segmentPromises = [];
+
+            const bobot = parseFloat($('#bobot').val());
+            const faktorBeban = parseFloat($('#faktor_beban').val());
+            const validBobot = !isNaN(bobot) ? bobot : 0; // Default factor to 1 if not set
+            const validFaktorBeban = !isNaN(faktorBeban) ? faktorBeban : 0; // Default factor to 1 if not set
+
+            for (let i = 0; i < routeSegments.length - 1; i++) {
+                const from = routeSegments[i];
+                const to = routeSegments[i + 1];
+                const coords = [
+                    [from.lng, from.lat],
+                    [to.lng, to.lat]
+                ];
+
+                segmentPromises.push(
+                    fetch('/api/ors-route', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        body: JSON.stringify({
+                            coordinates: coords
+                        })
                     })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    const encoded = data.routes[0].geometry;
-                    const decoded = polyline.decode(encoded); // [lat, lng] pairs
+                    .then(res => res.json())
+                    .then(data => {
+                        const encoded = data.routes[0].geometry;
+                        const decoded = polyline.decode(encoded);
 
-                    // 🟦 Draw polyline
-                    currentPolyline = L.polyline(decoded, {
-                        color: 'blue'
-                    }).addTo(map);
-                    map.fitBounds(currentPolyline.getBounds());
+                        const polylineColor = to.name.startsWith("IN -") ? "blue" : "green";
+                        const poly = L.polyline(decoded, {
+                            color: polylineColor,
+                            weight: 5,
+                            opacity: 0.8
+                        }).addTo(map);
 
-                    // ✅ Get distance from ORS in kilometers
-                    const distanceInKm = (data.routes[0].summary.distance / 1000).toFixed(2);
+                        currentPolylines.push(poly);
 
-                    // ✅ If kendaraan selected and konsumsi is available
-                    if (window.selectedKonsumsi) {
-                        const fuelUsed = (distanceInKm / window.selectedKonsumsi).toFixed(2);
-                        $('#perjalanan-form #jarak').val(distanceInKm);
-                        $('#perjalanan-form #kalkulasi').val(fuelUsed);
-                        // 💬 Display in alert or update in UI
-                        document.getElementById('route-info').innerHTML =
-                            `Jarak total: <strong>${distanceInKm} km</strong><br>Perkiraan BBM: <strong>${fuelUsed} liter</strong>`;
-                    }
-                })
+                        const distance = data.routes[0].summary.distance / 1000;
+                        totalDistance += distance;
 
-                .catch(err => {
-                    console.error('ORS fetch failed:', err);
-                    alert('Failed to draw route.');
-                });
+                        // Updated calculation: (konsumsi * distance) * bobot
+                        let fuelUsed = null;
+                        if (window.selectedKonsumsi && validBobot !== 0 && validBobot !== null &&
+                            validFaktorBeban !== 0 && validFaktorBeban !== null) {
+                            fuelUsed = (distance / window.selectedKonsumsi) * (1 + (validBobot * validFaktorBeban));
+                            totalFuel += fuelUsed;
+                        } else {
+                            console.log("Invalid Bobot or Konsumsi");
+                            fuelUsed = (distance / window.selectedKonsumsi);
+                            totalFuel += fuelUsed;
+                        }
+
+                        breakdownHtml += `
+                    <div>
+                        <strong>${from.name}</strong> → <strong>${to.name}</strong>: 
+                        ${distance.toFixed(2)} km, 
+                        BBM: ${fuelUsed ? fuelUsed.toFixed(2) + ' liter' : '-'}
+                    </div>
+                `;
+                    })
+                );
+            }
+
+            Promise.all(segmentPromises).then(() => {
+                breakdownHtml += `
+            <hr>
+                <div><strong>Total:</strong> ${totalDistance.toFixed(2)} km,
+                BBM: ${totalFuel ? totalFuel.toFixed(2) + ' liter' : '-'}</div>
+            `;
+                $('#route-breakdown').html(breakdownHtml);
+
+                // Set form values
+                $('#perjalanan-form #jarak').val(totalDistance.toFixed(2));
+                $('#perjalanan-form #kalkulasi').val(totalFuel ? totalFuel.toFixed(2) : '');
+            });
         }
     </script>
 
@@ -293,13 +419,21 @@
                         name: 'jarak'
                     },
                     {
+                        data: 'faktor_beban',
+                        name: 'faktor_beban'
+                    },
+                    {
+                        data: 'bobot',
+                        name: 'bobot'
+                    },
+                    {
                         data: 'kalkulasi',
                         name: 'kalkulasi'
                     },
-                    // {
-                    //     data: 'status',
-                    //     name: 'status'
-                    // },
+                    {
+                        data: 'kategori',
+                        name: 'kategori'
+                    },
                     {
                         data: 'action',
                         name: 'action',
@@ -343,17 +477,14 @@
                     $('#perjalanan-form select').val(null).trigger('change');
                     $('#perjalanan-table').DataTable().ajax.reload(null, false);
 
-                    if (currentPolyline) {
-                        map.removeLayer(currentPolyline);
-                        currentPolyline = null;
-                    }
+                    currentPolylines.forEach(poly => map.removeLayer(poly));
+                    currentPolylines = [];
 
-                    // 🧹 Clear markers
                     markers.forEach(marker => map.removeLayer(marker));
                     markers = [];
 
-                    // 🧹 Clear optional route info display
                     $('#route-info').html('');
+                    $('#route-breakdown').html(''); // Clear previous
                 },
                 error: function(xhr) {
                     if (xhr.status === 422) {
@@ -388,11 +519,23 @@
                 method: 'GET',
                 success: function(response) {
                     let ruteIds = response.rute.map(r => r.id);
+
                     $('#perjalanan-form #id').val(response.id);
                     $('#perjalanan-form #id_kendaraan').val(response.id_kendaraan).trigger('change');
+                    $('#perjalanan-form #bobot').val(response.bobot);
+                    $('#perjalanan-form #faktor_beban').val(response.faktor_beban);
                     $('#perjalanan-form #id_rute').val(ruteIds).trigger('change');
                     $('#perjalanan-form #id_user').val(response.id_user).trigger('change');
-                    // $('#kendaraan-form #status').val(response.status).trigger('change');
+                    $('#perjalanan-form #kategori').val(response.kategori).trigger('change');
+                    window.selectedKonsumsi = response.kendaraan.konsumsi;
+                    window.selectedRouteOrder = ruteIds.map(String);
+
+                    $('#bobot').trigger('input');
+                    $('#faktor_beban').trigger('input');
+
+                    setTimeout(() => {
+                        updateMap();
+                    }, 100);
                 },
                 error: function() {
                     Swal.fire({
@@ -407,6 +550,7 @@
             });
         });
     </script>
+
 
     <script>
         $(document).on('click', '.delete-btn', function() {
@@ -450,35 +594,67 @@
                 url: `/perjalanan/${perjalananId}`,
                 method: 'GET',
                 success: function(response) {
-                    // 🧹 Clear previous route and markers
-                    if (currentPolyline) {
-                        map.removeLayer(currentPolyline);
-                        currentPolyline = null;
-                    }
-
+                    // Clear map
                     markers.forEach(marker => map.removeLayer(marker));
                     markers = [];
+                    currentPolylines.forEach(line => map.removeLayer(line));
+                    currentPolylines = [];
+
+                    $('#route-breakdown').html('');
+                    $('#perjalanan-form')[0].reset(); // Optional: reset form inputs
 
                     const selectedRute = response.rute;
+                    const routeSegments = [];
 
-                    // Prepare coords: [lng, lat]
-                    const coords = selectedRute.map(r => {
+                    selectedRute.forEach((r, index) => {
                         let lat = parseFloat(r.latitude);
                         let lng = parseFloat(r.longitude);
 
-                        // Add marker
-                        const marker = L.marker([lat, lng])
+                        if (r.nama.startsWith("OUT - ")) {
+                            lat += 0.0001;
+                            lng += 0.0001;
+                        }
+
+                        let bgColor = r.nama.startsWith("IN - ") ? "#007bff" : "#28a745";
+
+                        let numberIcon = L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style="background:${bgColor};color:white;border-radius:50%;width:30px;height:30px;text-align:center;line-height:30px;font-weight:bold">${index + 1}</div>`,
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 30]
+                        });
+
+                        let marker = L.marker([lat, lng], {
+                                icon: numberIcon
+                            })
                             .addTo(map)
-                            .bindPopup(`<strong>${r.nama}</strong><br>${r.alamat}`);
+                            .bindPopup(`<strong>${r.nama}</strong><br>${r.alamat}`)
+                            .bindTooltip(r.nama, {
+                                permanent: true,
+                                direction: "top",
+                                offset: [0, -30]
+                            });
+
                         markers.push(marker);
 
-                        return [lng, lat];
+                        routeSegments.push({
+                            name: r.nama,
+                            lat: lat,
+                            lng: lng
+                        });
                     });
 
-                    if (coords.length >= 2) {
-                        plotRouteOnMap(coords);
-                    } else {
-                        map.fitBounds(L.featureGroup(markers).getBounds());
+                    // Store for live update on bobot/faktor_beban change
+                    window.lastRouteSegments = routeSegments;
+                    $('#bobot').val(response.bobot);
+                    $('#faktor_beban').val(response.faktor_beban);
+                    window.selectedKonsumsi = response.kendaraan.konsumsi;
+                    $('#bobot').trigger('input');
+                    $('#faktor_beban').trigger('input');
+                    if (routeSegments.length >= 2) {
+                        setTimeout(() => {
+                            plotSegmentedRoute(routeSegments);
+                        }, 50);
                     }
                 },
                 error: function() {
