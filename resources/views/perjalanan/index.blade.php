@@ -217,7 +217,7 @@
 
     <script>
         let debounceTimer;
-        $('#bobot, #faktor_beban').on('input', function() {
+        $('#faktor_beban').on('input', function() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 if (window.lastRouteSegments && window.lastRouteSegments.length > 1) {
@@ -356,9 +356,9 @@
 
                         // Updated calculation: (konsumsi * distance) * bobot
                         let fuelUsed = null;
-                        if (window.selectedKonsumsi && validBobot !== 0 && validBobot !== null &&
+                        if (window.selectedKonsumsi &&
                             validFaktorBeban !== 0 && validFaktorBeban !== null) {
-                            fuelUsed = (distance / window.selectedKonsumsi) * (1 + (validBobot * validFaktorBeban));
+                            fuelUsed = (distance / window.selectedKonsumsi) * validFaktorBeban;
                             totalFuel += fuelUsed;
                         } else {
                             console.log("Invalid Bobot or Konsumsi");
